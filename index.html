@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#202b57">
+  <meta name="description" content="Calendario personal para organizar turnos, francos y descansos.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>Mis Turnos</title>
+</head>
+<body>
+  <div class="app-frame">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img"><rect x="7" y="9" width="34" height="32" rx="8" fill="none" stroke="currentColor" stroke-width="3"/><path d="M15 6v8M33 6v8M8 18h32" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="29" r="8" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M24 24v5l4 2" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </div>
+        <div>
+          <p class="eyebrow">ORGANIZACIÓN PERSONAL</p>
+          <h1>Mis Turnos</h1>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="mode-badge" id="modeBadge">Rotación automática</span>
+        <button class="icon-button install-button" id="installButton" type="button" hidden aria-label="Instalar aplicación" title="Instalar aplicación">↓</button>
+      </div>
+    </header>
+
+    <nav class="main-tabs" aria-label="Secciones">
+      <button class="tab active" type="button" data-view="calendarView"><span aria-hidden="true">▦</span> Calendario</button>
+      <button class="tab" type="button" data-view="settingsView"><span aria-hidden="true">⚙</span> Configuración</button>
+    </nav>
+
+    <main>
+      <section id="calendarView" class="view">
+        <div class="month-toolbar">
+          <div>
+            <p class="eyebrow">TU PLANIFICACIÓN</p>
+            <h2 id="monthTitle">Noviembre 2026</h2>
+          </div>
+          <div class="month-actions">
+            <button class="soft-button today-button" id="todayButton" type="button">Hoy</button>
+            <button class="icon-button" id="prevMonth" type="button" aria-label="Mes anterior">‹</button>
+            <button class="icon-button" id="nextMonth" type="button" aria-label="Mes siguiente">›</button>
+          </div>
+        </div>
+
+        <div class="summary-strip" id="monthSummary" aria-live="polite"></div>
+        <div class="calendar-card">
+          <div class="weekdays" aria-hidden="true">
+            <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid" aria-label="Calendario mensual"></div>
+          <div class="calendar-legend" id="calendarLegend"></div>
+        </div>
+
+        <section class="selected-panel" id="selectedPanel" aria-live="polite">
+          <div class="selected-copy">
+            <p class="eyebrow">DÍA SELECCIONADO</p>
+            <h3 id="selectedDateTitle">Hoy</h3>
+            <p id="selectedDescription" class="selected-description">Seleccioná una fecha para ver el detalle.</p>
+          </div>
+          <div class="selected-actions">
+            <button class="soft-button" id="editSelectedButton" type="button">Editar día</button>
+            <button class="primary-button" id="addEventButton" type="button">＋ Agregar</button>
+          </div>
+        </section>
+
+        <p class="privacy-note"><span aria-hidden="true">🔒</span> Tus horarios se guardan en este dispositivo. Podés exportar un respaldo desde Configuración.</p>
+      </section>
+
+      <section id="settingsView" class="view hidden">
+        <div class="section-heading">
+          <p class="eyebrow">PERSONALIZÁ TU CALENDARIO</p>
+          <h2>Configuración</h2>
+          <p>Elegí cómo se generan los días y adaptá los turnos a tu régimen.</p>
+        </div>
+
+        <section class="settings-card">
+          <h3>1. Tipo de planificación</h3>
+          <div class="mode-options">
+            <label class="mode-option"><input type="radio" name="scheduleMode" value="rotation"><span><strong>Rotación</strong><small>Calcula los bloques de trabajo y francos.</small></span></label>
+            <label class="mode-option"><input type="radio" name="scheduleMode" value="fixed"><span><strong>Turnos fijos</strong><small>Repite el horario indicado para cada día de la semana.</small></span></label>
+            <label class="mode-option"><input type="radio" name="scheduleMode" value="manual"><span><strong>Solo carga manual</strong><small>El calendario se completa fecha por fecha.</small></span></label>
+          </div>
+        </section>
+
+        <section class="settings-card" id="rotationSettings">
+          <h3>2. Datos para calcular la rotación</h3>
+          <p class="helper">Indicá un franco que tengas confirmado. Desde esa fecha la aplicación calcula los próximos ciclos.</p>
+          <div class="form-grid two-cols">
+            <label class="field"><span>Fecha del franco de referencia</span><input id="anchorFranco" type="date"></label>
+            <label class="field"><span>Turno que comienza después de ese franco</span><select id="firstShift"></select></label>
+            <label class="field"><span>Días de trabajo por bloque</span><input id="workDays" type="number" min="1" max="31" inputmode="numeric"></label>
+            <label class="field"><span>Días de descanso antes del franco</span><input id="restDays" type="number" min="0" max="14" inputmode="numeric"></label>
+          </div>
+          <p class="info-callout"><strong>Turno nocturno:</strong> si el último turno termina al día siguiente (por ejemplo, 23:00–06:00), se marca la salida a las 06:00 y el franco queda ubicado después de esa salida. El día de salida no se cuenta como franco.</p>
+        </section>
+
+        <section class="settings-card hidden" id="fixedSettings">
+          <h3>2. Configurar turnos fijos</h3>
+          <p class="helper">Asigná un turno, franco o descanso a cada día. La configuración se repite todas las semanas.</p>
+          <div id="fixedRules" class="fixed-rules"></div>
+        </section>
+
+        <section class="settings-card">
+          <div class="card-title-row">
+            <div><h3>3. Mis turnos y horarios</h3><p class="helper">Podés cambiar los horarios, los nombres, los colores y el orden de rotación.</p></div>
+          </div>
+          <div id="shiftsEditor" class="shifts-editor"></div>
+          <form id="addShiftForm" class="add-shift-form">
+            <label class="field"><span>Nombre del turno</span><input id="newShiftName" type="text" maxlength="30" placeholder="Ej. Turno especial" required></label>
+            <label class="field"><span>Desde</span><input id="newShiftStart" type="time" value="08:00" required></label>
+            <label class="field"><span>Hasta</span><input id="newShiftEnd" type="time" value="14:00" required></label>
+            <label class="field color-field"><span>Color</span><input id="newShiftColor" type="color" value="#dbeafe"></label>
+            <button class="primary-button add-shift-button" type="submit">＋ Añadir turno</button>
+          </form>
+        </section>
+
+        <section class="settings-card">
+          <h3>4. Colores del calendario</h3>
+          <p class="helper">Elegí un color para diferenciar los francos, los descansos y las salidas.</p>
+          <div class="color-settings" id="specialColors"></div>
+        </section>
+
+        <section class="settings-card">
+          <h3>5. Respaldo de datos</h3>
+          <p class="helper">Exportá un archivo JSON para guardar tu configuración o transferirla a otro dispositivo. La importación reemplaza los datos actuales.</p>
+          <div class="backup-actions">
+            <button class="soft-button" id="exportButton" type="button">↓ Exportar respaldo</button>
+            <label class="soft-button file-button">↑ Importar respaldo<input id="importFile" type="file" accept="application/json,.json"></label>
+          </div>
+          <p class="small-note">La aplicación funciona sin conexión después de la primera carga. Los datos no se envían a un servidor.</p>
+        </section>
+      </section>
+    </main>
+
+    <footer class="app-footer"><span>Mis Turnos · Versión 1.0</span><span>Calendario personal</span></footer>
+  </div>
+
+  <dialog id="eventDialog" class="event-dialog">
+    <form id="eventForm" method="dialog">
+      <div class="dialog-header"><div><p class="eyebrow">PLANIFICACIÓN DEL DÍA</p><h2 id="dialogTitle">Agregar día</h2></div><button class="icon-button close-dialog" id="closeDialog" type="button" aria-label="Cerrar">×</button></div>
+      <label class="field"><span>Fecha</span><input id="eventDate" type="date" required></label>
+      <label class="field"><span>Tipo de día</span><select id="eventType"><option value="shift">Turno de trabajo</option><option value="franco">Franco</option><option value="descanso">Descanso</option><option value="exit">Salida de turno nocturno</option></select></label>
+      <div id="eventShiftFields" class="event-shift-fields">
+        <label class="field"><span>Turno</span><select id="eventShift"></select></label>
+        <label class="checkbox-field"><input type="checkbox" id="autoExit"><span>Marcar también la salida al día siguiente, si corresponde</span></label>
+      </div>
+      <label class="field"><span>Aclaración (opcional)</span><input id="eventNote" type="text" maxlength="90" placeholder="Ej. Cambio de servicio"></label>
+      <div class="dialog-actions"><button class="text-button danger-text" id="deleteManualButton" type="button" hidden>Quitar carga manual</button><span class="dialog-spacer"></span><button class="soft-button" id="cancelDialog" type="button">Cancelar</button><button class="primary-button" type="submit">Guardar</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>
