@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="Icons/icon-192.png">
+  <link rel="apple-touch-icon" href="Icons/icon-192.png">
   <link rel="stylesheet" href="styles.css">
   <title>Mis Turnos</title>
 </head>
@@ -35,6 +35,7 @@
     <nav class="main-tabs" aria-label="Secciones">
       <button class="tab active" type="button" data-view="calendarView"><span aria-hidden="true">▦</span> Calendario</button>
       <button class="tab" type="button" data-view="settingsView"><span aria-hidden="true">⚙</span> Configuración</button>
+      <button class="tab" type="button" data-view="profilesView"><span aria-hidden="true">♙</span> Perfiles</button>
     </nav>
 
     <main>
@@ -60,19 +61,23 @@
           <div class="calendar-legend" id="calendarLegend"></div>
         </div>
 
-        <section class="selected-panel" id="selectedPanel" aria-live="polite">
+        <section class="selected-panel selected-panel-detail" id="selectedPanel" aria-live="polite">
           <div class="selected-copy">
             <p class="eyebrow">DÍA SELECCIONADO</p>
             <h3 id="selectedDateTitle">Hoy</h3>
-            <p id="selectedDescription" class="selected-description">Seleccioná una fecha para ver el detalle.</p>
+            <p id="selectedDescription" class="selected-description">Todavía no hay turnos cargados para esta fecha.</p>
+            <p id="receivedDayHint" class="profile-hint"></p>
           </div>
           <div class="selected-actions">
-            <button class="soft-button" id="editSelectedButton" type="button">Editar día</button>
-            <button class="primary-button" id="addEventButton" type="button">＋ Agregar</button>
+            <button class="primary-button" id="manageDayButton" type="button">＋ Agregar asignación</button>
+          </div>
+          <div class="day-note-editor">
+            <label class="field"><span>Detalle / observaciones del día</span><textarea id="dayNote" rows="3" maxlength="1200" placeholder="Podés escribir novedades, lugar de trabajo, instrucciones, cambios, recordatorios, etc."></textarea></label>
+            <button class="soft-button" id="saveDayNoteButton" type="button">Guardar detalle</button>
           </div>
         </section>
 
-        <p class="privacy-note"><span aria-hidden="true">🔒</span> Tus horarios se guardan en este dispositivo. Podés exportar un respaldo desde Configuración.</p>
+        <p class="privacy-note"><span aria-hidden="true">🔒</span> Tus horarios se guardan en este dispositivo. Los perfiles compartidos se importan por archivo y no borran tu planificación anterior.</p>
       </section>
 
       <section id="settingsView" class="view hidden">
@@ -93,7 +98,7 @@
 
         <section class="settings-card" id="rotationSettings">
           <h3>2. Datos para calcular la rotación</h3>
-          <p class="helper">Indicá un franco que tengas confirmado. Desde esa fecha la aplicación calcula los próximos ciclos.</p>
+          <p class="helper">Indicá un franco que tengas confirmado. Desde esa fecha la aplicación calcula los próximos ciclos. Si todavía no querés calcular una rotación, dejá este apartado sin configurar.</p>
           <div class="form-grid two-cols">
             <label class="field"><span>Fecha del franco de referencia</span><input id="anchorFranco" type="date"></label>
             <label class="field"><span>Turno que comienza después de ese franco</span><select id="firstShift"></select></label>
@@ -111,13 +116,14 @@
 
         <section class="settings-card">
           <div class="card-title-row">
-            <div><h3>3. Mis turnos y horarios</h3><p class="helper">Podés cambiar los horarios, los nombres, los colores y el orden de rotación.</p></div>
+            <div><h3>3. Mis turnos y horarios</h3><p class="helper">Podés definir turnos de cualquier duración. Para una carga puntual también hay jornadas rápidas de 4, 6, 8 y 12 horas, horas extra y segundos turnos.</p></div>
           </div>
           <div id="shiftsEditor" class="shifts-editor"></div>
           <form id="addShiftForm" class="add-shift-form">
             <label class="field"><span>Nombre del turno</span><input id="newShiftName" type="text" maxlength="30" placeholder="Ej. Turno especial" required></label>
             <label class="field"><span>Desde</span><input id="newShiftStart" type="time" value="08:00" required></label>
             <label class="field"><span>Hasta</span><input id="newShiftEnd" type="time" value="14:00" required></label>
+            <label class="field"><span>Duración</span><select id="newShiftDuration"><option value="4">4 horas</option><option value="6" selected>6 horas</option><option value="8">8 horas</option><option value="12">12 horas</option><option value="custom">Personalizada</option></select></label>
             <label class="field color-field"><span>Color</span><input id="newShiftColor" type="color" value="#dbeafe"></label>
             <button class="primary-button add-shift-button" type="submit">＋ Añadir turno</button>
           </form>
@@ -139,22 +145,62 @@
           <p class="small-note">La aplicación funciona sin conexión después de la primera carga. Los datos no se envían a un servidor.</p>
         </section>
       </section>
+
+      <section id="profilesView" class="view hidden">
+        <div class="section-heading">
+          <p class="eyebrow">PLANIFICACIÓN COMPARTIDA</p>
+          <h2>Perfiles</h2>
+          <p>Creá un espacio independiente para cada empleado o importá una planificación que te enviaron por WhatsApp.</p>
+        </div>
+        <section class="settings-card">
+          <h3>Perfiles de planificación de este dispositivo</h3>
+          <p class="helper">Cada perfil tiene su propio calendario, turnos, reglas, colores y observaciones. Podés cambiar entre ellos sin mezclar los datos.</p>
+          <div class="current-profile-banner">Perfil abierto: <strong id="currentProfileName">Mi calendario</strong></div>
+          <div id="localProfiles" class="profile-list"></div>
+          <form id="createProfileForm" class="create-profile-form">
+            <label class="field"><span>Nombre del nuevo perfil (por ejemplo, empleado)</span><input id="newProfileName" maxlength="60" placeholder="Ej. Juan Pérez" required></label>
+            <button class="primary-button" type="submit">＋ Crear perfil independiente</button>
+          </form>
+        </section>
+        <section class="settings-card">
+          <h3>Compartir la planificación del perfil abierto</h3>
+          <p class="helper">Configurá las jornadas en Calendario y Configuración. Después elegí el período que querés enviar. Se exportará una fotografía de los turnos día por día, sin compartir otros perfiles ni tus datos personales.</p>
+          <div class="form-grid two-cols">
+            <label class="field"><span>Nombre del empleado</span><input id="shareEmployee" maxlength="60" placeholder="Ej. Juan Pérez"></label>
+            <label class="field"><span>Comienza a regir el perfil</span><input id="shareEffective" type="date"></label>
+            <label class="field"><span>Hasta</span><input id="shareTo" type="date"></label>
+          </div>
+          <div class="backup-actions profile-share-actions">
+            <button class="primary-button" id="shareProfileButton" type="button">Compartir perfil por WhatsApp</button>
+            <button class="soft-button" id="exportProfileBackup" type="button">Exportar perfil como archivo</button>
+          </div>
+          <p class="small-note">En Android se abrirá el menú para compartir el archivo. Elegí WhatsApp y enviáselo al empleado. El perfil recibido queda separado y solo reemplaza visualmente la planificación desde su fecha de vigencia.</p>
+        </section>
+        <section class="settings-card">
+          <h3>Importar un perfil recibido</h3>
+          <p class="helper">En WhatsApp, descargá el archivo que te enviaron. Después tocá el botón y elegí ese archivo (.turnos.json o .json). No se reemplaza tu calendario actual.</p>
+          <label class="soft-button file-button">＋ Seleccionar archivo de perfil<input id="importProfileFile" type="file" accept="application/json,.json,.turnos.json"></label>
+          <div id="receivedProfiles" class="profile-list received-list"></div>
+        </section>
+      </section>
     </main>
 
-    <footer class="app-footer"><span>Mis Turnos · Versión 1.0</span><span>Calendario personal</span></footer>
+    <footer class="app-footer"><span>Mis Turnos · Versión 2.0</span><span>Calendarios y perfiles independientes</span></footer>
   </div>
 
   <dialog id="eventDialog" class="event-dialog">
     <form id="eventForm" method="dialog">
-      <div class="dialog-header"><div><p class="eyebrow">PLANIFICACIÓN DEL DÍA</p><h2 id="dialogTitle">Agregar día</h2></div><button class="icon-button close-dialog" id="closeDialog" type="button" aria-label="Cerrar">×</button></div>
+      <div class="dialog-header"><div><p class="eyebrow">PLANIFICACIÓN DEL DÍA</p><h2 id="dialogTitle">Agregar asignación</h2></div><button class="icon-button close-dialog" id="closeDialog" type="button" aria-label="Cerrar">×</button></div>
       <label class="field"><span>Fecha</span><input id="eventDate" type="date" required></label>
-      <label class="field"><span>Tipo de día</span><select id="eventType"><option value="shift">Turno de trabajo</option><option value="franco">Franco</option><option value="descanso">Descanso</option><option value="exit">Salida de turno nocturno</option></select></label>
+      <label class="field"><span>Tipo de asignación</span><select id="eventType"><option value="work">Jornada de trabajo</option><option value="franco">Franco</option><option value="descanso">Descanso</option><option value="exit">Salida de turno nocturno</option></select></label>
       <div id="eventShiftFields" class="event-shift-fields">
-        <label class="field"><span>Turno</span><select id="eventShift"></select></label>
-        <label class="checkbox-field"><input type="checkbox" id="autoExit"><span>Marcar también la salida al día siguiente, si corresponde</span></label>
+        <div class="segment-heading"><strong>Tramos de trabajo</strong><small>Podés agregar horas extra o un segundo turno en el mismo día.</small></div>
+        <div id="segmentsContainer" class="segments-container"></div>
+        <button class="soft-button add-segment-button" id="addSegmentButton" type="button">＋ Agregar horas extra / segundo turno</button>
+        <label class="checkbox-field"><input type="checkbox" id="autoExit"><span>Marcar también la salida al día siguiente si el último tramo cruza la medianoche.</span></label>
       </div>
-      <label class="field"><span>Aclaración (opcional)</span><input id="eventNote" type="text" maxlength="90" placeholder="Ej. Cambio de servicio"></label>
-      <div class="dialog-actions"><button class="text-button danger-text" id="deleteManualButton" type="button" hidden>Quitar carga manual</button><span class="dialog-spacer"></span><button class="soft-button" id="cancelDialog" type="button">Cancelar</button><button class="primary-button" type="submit">Guardar</button></div>
+      <label class="field"><span>Aclaración breve (opcional)</span><input id="eventNote" type="text" maxlength="120" placeholder="Ej. Reemplazo, guardia, cobertura"></label>
+      <div class="dialog-actions"><button class="text-button danger-text" id="deleteManualButton" type="button" hidden>Quitar asignación</button><span class="dialog-spacer"></span><button class="soft-button" id="cancelDialog" type="button">Cancelar</button><button class="primary-button" type="submit">Guardar</button></div>
     </form>
   </dialog>
 
