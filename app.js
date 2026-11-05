@@ -1,10 +1,32 @@
 'use strict';
 
-// Mis Turnos v2 — planificación vacía, jornadas múltiples y perfiles compartibles.
+// Mis Turnos v4 — cómputo de horas nocturnas (21:00–05:00), feriados y modo oscuro.
 const STORAGE_KEY = 'mis-turnos-data-v2';
 const WEEKDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const DEFAULT_COLORS = { franco: '#F7D7DE', descanso: '#DDE9EA', exit: '#FFF0C2', normal: '#DCEBFF', extra: '#FFE0BD', second: '#E8E0FB', profile: '#D8E4FF' };
+// Feriados nacionales 2026 y los feriados especiales aplicables en Provincia de Buenos Aires.
+// Los días no laborables se registran por separado y no se computan como feriados.
+const DEFAULT_HOLIDAYS_2026 = [
+  ['2026-01-01','Año Nuevo','feriado'],['2026-02-16','Carnaval','feriado'],['2026-02-17','Carnaval','feriado'],
+  ['2026-03-23','Día no laborable con fines turísticos','noLaborable'],['2026-03-24','Día Nacional de la Memoria por la Verdad y la Justicia','feriado'],
+  ['2026-04-02','Día del Veterano y de los Caídos en la Guerra de Malvinas','feriado'],['2026-04-03','Viernes Santo','feriado'],
+  ['2026-05-01','Día del Trabajador','feriado'],['2026-05-25','Revolución de Mayo','feriado'],
+  ['2026-06-15','Paso a la Inmortalidad del Gral. Martín Miguel de Güemes (trasladado)','feriado'],['2026-06-20','Paso a la Inmortalidad del Gral. Manuel Belgrano','feriado'],
+  ['2026-07-09','Día de la Independencia','feriado'],['2026-07-10','Día no laborable con fines turísticos','noLaborable'],
+  ['2026-08-17','Paso a la Inmortalidad del Gral. José de San Martín','feriado'],['2026-10-12','Día del Respeto a la Diversidad Cultural','feriado'],
+  ['2026-11-09','Feriado nacional especial por visita del Papa León XIV','feriado'],
+  ['2026-11-23','Día de la Soberanía Nacional (trasladado)','feriado'],['2026-12-07','Día no laborable con fines turísticos','noLaborable'],
+  ['2026-12-08','Inmaculada Concepción de María','feriado'],['2026-12-25','Navidad','feriado']
+].map(([date,name,type])=>({date,name,type,origin:'default-2026'}));
+const DEFAULT_HOUR_RULES = { nightStart:'21:00', nightEnd:'05:00' };
+function normalizeHourRules(rules = {}) {
+  const normalized = { ...DEFAULT_HOUR_RULES, ...(rules || {}) };
+  // Migra el valor predeterminado anterior (06:00) al nuevo límite solicitado (05:00).
+  if (normalized.nightEnd === '06:00') normalized.nightEnd = '05:00';
+  delete normalized.saturday100Start;
+  return normalized;
+}
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -14,8 +36,9 @@ function emptyPlanner(name = 'Mi calendario') {
   return {
     name,
     mode: 'manual',
-    settings: { anchorFranco: '', firstShiftId: '', workDays: 5, restDays: 0 },
+    settings: { anchorFranco: '', firstShiftId: '', workDays: 5, restDays: 0, hourRules: clone(DEFAULT_HOUR_RULES) },
     shifts: [],
+    holidays: clone(DEFAULT_HOLIDAYS_2026),
     colors: clone(DEFAULT_COLORS),
     fixedRules: Array.from({ length: 7 }, () => ({ type: 'none' })),
     manualEntries: {},
@@ -29,8 +52,9 @@ function normalizePlanner(input, fallbackName = 'Mi calendario') {
     ...base, ...p,
     name: String(p.name || fallbackName),
     mode: ['rotation', 'fixed', 'manual'].includes(p.mode) ? p.mode : 'manual',
-    settings: { ...base.settings, ...(p.settings || {}) },
+    settings: { ...base.settings, ...(p.settings || {}), hourRules: normalizeHourRules(p.settings?.hourRules) },
     shifts: Array.isArray(p.shifts) ? p.shifts : [],
+    holidays: Array.isArray(p.holidays) ? p.holidays : clone(DEFAULT_HOLIDAYS_2026),
     colors: { ...base.colors, ...(p.colors || {}) },
     fixedRules: Array.isArray(p.fixedRules) && p.fixedRules.length === 7 ? p.fixedRules : base.fixedRules,
     manualEntries: p.manualEntries && typeof p.manualEntries === 'object' ? p.manualEntries : {},
@@ -93,6 +117,48 @@ function formatMonth(date) { const s = MONTHS[date.getMonth()]; return `${s.char
 function timeMinutes(value) { const [h, m] = String(value || '00:00').split(':').map(Number); return (h || 0) * 60 + (m || 0); }
 function minutesToTime(value) { const n = ((value % 1440) + 1440) % 1440; return `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`; }
 function durationHours(start, end) { let mins = timeMinutes(end) - timeMinutes(start); if (mins <= 0) mins += 1440; return mins / 60; }
+function formatHours(minutes) { const whole=Math.floor(minutes/60), rest=minutes%60; return rest?`${whole} h ${String(rest).padStart(2,'0')} min`:`${whole} h`; }
+function getHoliday(dateISO, source=data) { return (source.holidays || []).find((h)=>h.date===dateISO) || null; }
+function isNightMinute(date, rules) {
+  const minute=date.getHours()*60+date.getMinutes(), start=timeMinutes(rules.nightStart), end=timeMinutes(rules.nightEnd);
+  return start===end ? true : start<end ? minute>=start&&minute<end : minute>=start||minute<end;
+}
+function eventSegments(event, source) {
+  if (!event) return [];
+  if (event.type==='shift') { const shift=shiftById(event.shiftId,source); return shift?[{start:shift.start,end:shift.end,kind:'normal'}]:[]; }
+  return event.type==='work'&&Array.isArray(event.segments)?event.segments:[];
+}
+function monthHourMetrics(month) {
+  const first=isoDate(new Date(month.getFullYear(),month.getMonth(),1,12));
+  const last=isoDate(new Date(month.getFullYear(),month.getMonth()+1,0,12));
+  const metrics={total:0,night:0,holiday:0,nonLaborable:0,holidayDays:new Set(),nonLaborableDays:new Set()};
+  // Cuenta los días del calendario aunque no tengan una jornada cargada.
+  for(let dayISO=first;dayISO<=last;dayISO=addDays(dayISO,1)) {
+    const dayInfo=getDisplayInfo(dayISO), holiday=getHoliday(dayISO,dayInfo.source);
+    if(holiday?.type==='feriado') metrics.holidayDays.add(dayISO);
+    if(holiday?.type==='noLaborable') metrics.nonLaborableDays.add(dayISO);
+  }
+  // Incluye turnos que empiezan el último día del mes anterior y terminan dentro del mes.
+  for(let dateISO=addDays(first,-1);dateISO<=last;dateISO=addDays(dateISO,1)) {
+    const info=getDisplayInfo(dateISO), event=info.event, source=info.source;
+    for(const seg of eventSegments(event,source)) {
+      if(!seg.start||!seg.end) continue;
+      const start=new Date(dateFromISO(dateISO)); start.setHours(Math.floor(timeMinutes(seg.start)/60),timeMinutes(seg.start)%60,0,0);
+      const duration=Math.max(0,Math.round(durationHours(seg.start,seg.end)*60));
+      for(let offset=0;offset<duration;offset++) {
+        const minute=new Date(start.getTime()+offset*60000), dayISO=isoDate(minute);
+        if(dayISO<first||dayISO>last) continue;
+        const dayInfo=getDisplayInfo(dayISO), holiday=getHoliday(dayISO,dayInfo.source);
+        metrics.total++;
+        if(isNightMinute(minute,source.settings?.hourRules||DEFAULT_HOUR_RULES)) metrics.night++;
+        if(holiday?.type==='feriado') metrics.holiday++;
+        if(holiday?.type==='noLaborable') metrics.nonLaborable++;
+      }
+    }
+  }
+  return metrics;
+}
+
 function isOvernight(shift) { return !!shift && timeMinutes(shift.end) <= timeMinutes(shift.start); }
 function shiftById(id, source = data) { return source.shifts.find((s) => s.id === id) || null; }
 function safeText(value) { return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -160,7 +226,7 @@ function activeReceivedProfile() { return appState.receivedProfiles.find((p) => 
 function getDisplayInfo(dateISO) {
   const received = activeReceivedProfile();
   if (received && dateISO >= received.effectiveDate && dateISO <= received.endDate && Object.prototype.hasOwnProperty.call(received.entries || {}, dateISO)) {
-    return { event: received.entries[dateISO] || null, source: { shifts: received.shifts || [], colors: { ...DEFAULT_COLORS, ...(received.colors || {}) } }, received, isOverlay: true };
+    return { event: received.entries[dateISO] || null, source: { shifts: received.shifts || [], colors: { ...DEFAULT_COLORS, ...(received.colors || {}) }, holidays: received.holidays || data.holidays || [], settings: { ...data.settings, hourRules: normalizeHourRules(received.settings?.hourRules) } }, received, isOverlay: true };
   }
   return { event: getBaseEvent(dateISO), source: data, received: null, isOverlay: false };
 }
@@ -222,7 +288,7 @@ function renderCalendar() {
   const today = isoDate(new Date()); const counts = { shift: 0, work: 0, franco: 0, descanso: 0, extra: 0 };
   const grid = $('#calendarGrid'); grid.innerHTML = '';
   cells.forEach((dateISO) => {
-    const info = getDisplayInfo(dateISO); const event = info.event; const date = dateFromISO(dateISO);
+    const info = getDisplayInfo(dateISO); const event = info.event; const holiday=getHoliday(dateISO,info.source); const date = dateFromISO(dateISO);
     if (sameMonth(date, visibleMonth) && event) {
       if (['shift','work'].includes(event.type)) counts.shift += 1;
       else if (counts[event.type] !== undefined) counts[event.type] += 1;
@@ -230,7 +296,7 @@ function renderCalendar() {
     }
     const cell = document.createElement('button'); cell.type = 'button'; cell.className = 'day-cell';
     if (!sameMonth(date, visibleMonth)) cell.classList.add('outside-month');
-    if (dateISO === selectedDate) cell.classList.add('selected'); if (dateISO === today) cell.classList.add('today');
+    if (dateISO === selectedDate) cell.classList.add('selected'); if (dateISO === today) cell.classList.add('today'); if(holiday) cell.classList.add(holiday.type==='feriado'?'holiday-day':'nonwork-day');
     cell.setAttribute('aria-label', `${formatLongDate(dateISO)}. ${event ? eventName(event, info.source) : 'Sin turno cargado'}`);
     const number = document.createElement('span'); number.className = 'day-number'; number.textContent = String(date.getDate()); cell.appendChild(number);
     if (info.received && dateISO === info.received.effectiveDate) {
@@ -242,6 +308,7 @@ function renderCalendar() {
       if (event.note && !['franco','descanso','Franco de referencia'].includes(event.note)) { const note = document.createElement('span'); note.className = 'event-note'; note.textContent = event.note; cell.appendChild(note); }
       cell.style.borderTop = `3px solid ${color}`;
     } else { const empty = document.createElement('span'); empty.className = 'empty-day'; empty.textContent = '—'; cell.appendChild(empty); }
+    if(holiday){const h=document.createElement('span');h.className=holiday.type==='feriado'?'holiday-chip':'nonwork-chip';h.textContent=holiday.type==='feriado'?'FERIADO':'NO LABORABLE';h.title=holiday.name;cell.appendChild(h);}
     if (data.dayNotes?.[dateISO]) { const dot = document.createElement('span'); dot.className = 'note-dot'; dot.textContent = 'Detalle'; cell.appendChild(dot); }
     cell.addEventListener('click', () => { selectedDate = dateISO; if (!sameMonth(date, visibleMonth)) visibleMonth = new Date(date.getFullYear(), date.getMonth(), 1); renderCalendar(); });
     grid.appendChild(cell);
@@ -250,6 +317,8 @@ function renderCalendar() {
     <div class="summary-item"><span>Jornadas</span><strong>${counts.shift}</strong></div>
     <div class="summary-item"><span>Francos</span><strong>${counts.franco}</strong></div>
     <div class="summary-item"><span>Extras / dobles</span><strong>${counts.extra}</strong></div>`;
+  const hours=monthHourMetrics(visibleMonth);
+  $('#hoursSummary').innerHTML=`<div class="hours-summary-title">Cómputo de horas del mes <small>(según los horarios y feriados cargados)</small></div><div class="hours-summary-grid"><div class="hours-metric emphasis"><span>Horas nocturnas (21:00–05:00)</span><strong>${formatHours(hours.night)}</strong></div><div class="hours-metric"><span>Días feriados</span><strong>${hours.holidayDays.size}</strong></div><div class="hours-metric"><span>Horas trabajadas en feriados</span><strong>${formatHours(hours.holiday)}</strong></div><div class="hours-metric"><span>Días no laborables</span><strong>${hours.nonLaborableDays.size}</strong></div><div class="hours-metric"><span>Horas en días no laborables</span><strong>${formatHours(hours.nonLaborable)}</strong></div></div><p class="hours-summary-foot">Las horas nocturnas se cuentan por minuto dentro del período configurado (por defecto, de 21:00 a 05:00). Los días feriados se cuentan aunque no haya trabajo asignado; las horas de feriado incluyen únicamente el tiempo efectivamente trabajado. Los días no laborables se muestran por separado.</p>`;
   renderLegend(); renderSelectedDay();
 }
 function renderLegend() {
@@ -257,7 +326,7 @@ function renderLegend() {
     ...data.shifts.map((s) => ({ label: `${s.name} (${s.start}–${s.end})`, color: s.color })),
     { label: 'Jornada', color: data.colors.normal }, { label: 'Horas extra', color: data.colors.extra },
     { label: 'Segundo turno', color: data.colors.second }, { label: 'Franco', color: data.colors.franco },
-    { label: 'Descanso', color: data.colors.descanso }, { label: 'Salida', color: data.colors.exit }
+    { label: 'Descanso', color: data.colors.descanso }, { label: 'Salida', color: data.colors.exit }, { label:'Feriado',color:'#f4b7a8' }, { label:'Día no laborable',color:'#e4d9a8' }
   ];
   $('#calendarLegend').innerHTML = entries.map((item) => `<span class="legend-item"><i class="legend-dot" style="background:${safeText(item.color)}"></i>${safeText(item.label)}</span>`).join('');
 }
@@ -265,6 +334,8 @@ function renderSelectedDay() {
   const info = getDisplayInfo(selectedDate); const event = info.event;
   $('#selectedDateTitle').textContent = formatLongDate(selectedDate);
   let description = eventName(event, info.source);
+  const selectedHoliday=getHoliday(selectedDate,info.source);
+  if(selectedHoliday) description += ` ${selectedHoliday.type==='feriado'?'Feriado':'Día no laborable'}: ${selectedHoliday.name}.`;
   if (info.received && selectedDate === info.received.effectiveDate) description = `Perfil ${info.received.name} en vigencia. ${description}`;
   if (event?.note && !['Franco de referencia','Descanso previo al franco'].includes(event.note)) description += ` Aclaración: ${event.note}.`;
   if (info.received?.notes?.[selectedDate]) description += ` Observación del perfil: ${info.received.notes[selectedDate]}.`;
@@ -285,7 +356,9 @@ function renderSettings() {
   $('#workDays').value = data.settings.workDays; $('#restDays').value = data.settings.restDays;
   $('#firstShift').innerHTML = data.shifts.map((s) => `<option value="${safeText(s.id)}">${safeText(s.name)} (${safeText(s.start)}–${safeText(s.end)})</option>`).join('');
   $('#firstShift').value = data.settings.firstShiftId || '';
-  renderFixedRules(); renderShiftsEditor(); renderSpecialColors();
+  $('#nightStart').value = data.settings.hourRules?.nightStart || DEFAULT_HOUR_RULES.nightStart;
+  $('#nightEnd').value = data.settings.hourRules?.nightEnd || DEFAULT_HOUR_RULES.nightEnd;
+  renderFixedRules(); renderShiftsEditor(); renderSpecialColors(); renderHolidayList();
 }
 function ruleValue(rule) { if (!rule || rule.type === 'none') return 'none'; if (['franco','descanso'].includes(rule.type)) return rule.type; if (rule.type === 'shift') return `shift:${rule.shiftId}`; return 'none'; }
 function parseRule(value) { if (value.startsWith('shift:')) return { type: 'shift', shiftId: value.slice(6) }; if (['franco','descanso'].includes(value)) return { type: value }; return { type: 'none' }; }
@@ -330,6 +403,19 @@ function renderSpecialColors() {
   const labels = { franco:'Franco', descanso:'Descanso', exit:'Salida', normal:'Jornada', extra:'Horas extra', second:'Segundo turno', profile:'Inicio de perfil' };
   $('#specialColors').innerHTML = Object.entries(labels).map(([k,v]) => `<label class="color-setting"><span>${v}</span><input type="color" data-special-color="${k}" value="${safeText(data.colors[k])}"></label>`).join('');
   $$('[data-special-color]').forEach((input) => input.addEventListener('input', () => { data.colors[input.dataset.specialColor]=input.value; saveData(); renderCalendar(); }));
+}
+function renderHolidayList() {
+  const list=$('#holidayList');
+  const holidays=[...(data.holidays||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  list.innerHTML=holidays.length?holidays.map((h)=>`<div class="holiday-row"><div><strong>${safeText(h.date)}</strong><span>${safeText(h.name)}</span><small>${h.type==='feriado'?'Feriado':'Día no laborable'}${h.origin==='default-2026'?' · Calendario nacional 2026':''}</small></div><button class="mini-button delete-shift" type="button" data-remove-holiday="${safeText(h.date)}" aria-label="Quitar fecha">×</button></div>`).join(''):'<p class="empty-message">No hay fechas cargadas.</p>';
+  $$('[data-remove-holiday]').forEach((button)=>button.addEventListener('click',()=>{const date=button.dataset.removeHoliday;data.holidays=(data.holidays||[]).filter((h)=>h.date!==date);saveData();renderHolidayList();renderCalendar();showToast('Fecha eliminada del calendario.');}));
+}
+function addHoliday(date,name,type) {
+  if(!date||!name.trim())return false;
+  const existing=(data.holidays||[]).find((h)=>h.date===date);
+  if(existing){existing.name=name.trim();existing.type=type;existing.origin='custom';}
+  else data.holidays.push({date,name:name.trim(),type,origin:'custom'});
+  data.holidays.sort((a,b)=>a.date.localeCompare(b.date));saveData();renderHolidayList();renderCalendar();return true;
 }
 function showToast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2800); }
 function setView(viewId) {
@@ -468,7 +554,7 @@ function buildSharePackage() {
   for(const [date,event] of Object.entries(data.manualEntries))if(date>=effective&&date<=end)map.set(date,event);
   const entries={}; const notes={};
   for(let date=effective;date<=end;date=addDays(date,1)) { entries[date]=cloneEntry(map.get(date)||null); if(data.dayNotes[date])notes[date]=data.dayNotes[date]; }
-  return {kind:'mis-turnos-profile',version:1,id:uid('shared'),name:employee,employeeName:employee,effectiveDate:effective,startDate:effective,endDate:end,entries,notes,shifts:clone(data.shifts),colors:clone(data.colors),createdAt:new Date().toISOString(),senderProfile:activeProfile.name};
+  return {kind:'mis-turnos-profile',version:1,id:uid('shared'),name:employee,employeeName:employee,effectiveDate:effective,startDate:effective,endDate:end,entries,notes,shifts:clone(data.shifts),colors:clone(data.colors),holidays:clone(data.holidays),settings:clone(data.settings),createdAt:new Date().toISOString(),senderProfile:activeProfile.name};
 }
 async function shareCurrentProfile() {
   const pkg=buildSharePackage();if(!pkg)return;
@@ -516,11 +602,19 @@ $('#anchorFranco').addEventListener('change',()=>{data.settings.anchorFranco=$('
 $('#firstShift').addEventListener('change',()=>{data.settings.firstShiftId=$('#firstShift').value;refreshAll();});
 $('#workDays').addEventListener('change',()=>{data.settings.workDays=Math.max(1,Math.min(31,Number($('#workDays').value)||5));refreshAll();});
 $('#restDays').addEventListener('change',()=>{data.settings.restDays=Math.max(0,Math.min(14,Number($('#restDays').value)||0));refreshAll();});
+['nightStart','nightEnd'].forEach((id)=>$('#'+id).addEventListener('change',()=>{data.settings.hourRules=normalizeHourRules({...data.settings.hourRules,[id]:$('#'+id).value});saveData();renderCalendar();}));
+$('#holidayForm').addEventListener('submit',(event)=>{event.preventDefault();const ok=addHoliday($('#holidayDate').value,$('#holidayName').value,$('#holidayType').value);if(ok){$('#holidayName').value='';showToast('Fecha agregada al calendario.');}});
 $('#exportButton').addEventListener('click',exportBackup);$('#importFile').addEventListener('change',(e)=>importBackup(e.target.files?.[0]));
 $('#createProfileForm').addEventListener('submit',(e)=>{e.preventDefault();const name=$('#newProfileName').value.trim();if(!name)return;if(appState.profiles.some((p)=>p.name.toLowerCase()===name.toLowerCase())){showToast('Ya existe un perfil con ese nombre.');return;}$('#newProfileName').value='';createLocalProfile(name);});
 $('#shareProfileButton').addEventListener('click',shareCurrentProfile);
 $('#importProfileFile').addEventListener('change',(e)=>importSharedProfile(e.target.files?.[0]));
 $('#exportProfileBackup').addEventListener('click',()=>{saveData();const profile=appState.profiles.find((p)=>p.id===activeProfileId);downloadJSON({kind:'mis-turnos-planner',version:1,profileName:profile.name,planner:clone(data)},`perfil-${profile.name.toLowerCase().replace(/[^a-z0-9]+/g,'-')}.json`);showToast('Perfil exportado.');});
+
+// Modo oscuro persistente (independiente de los perfiles).
+const THEME_KEY='mis-turnos-theme-v1';
+function applyTheme(theme){const dark=theme==='dark';document.body.classList.toggle('dark-mode',dark);const btn=$('#themeToggle');if(btn){btn.textContent=dark?'☀ Modo claro':'☾ Modo oscuro';btn.setAttribute('aria-pressed',String(dark));}const meta=$('#themeColorMeta');if(meta)meta.setAttribute('content',dark?'#111827':'#202b57');}
+applyTheme(localStorage.getItem(THEME_KEY)||'light');
+$('#themeToggle').addEventListener('click',()=>{const dark=!document.body.classList.contains('dark-mode');const theme=dark?'dark':'light';localStorage.setItem(THEME_KEY,theme);applyTheme(theme);});
 
 // PWA instalación/actualización.
 window.addEventListener('beforeinstallprompt',(event)=>{event.preventDefault();installPrompt=event;$('#installButton').hidden=false;});

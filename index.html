@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#202b57">
+  <meta name="theme-color" content="#202b57" id="themeColorMeta">
   <meta name="description" content="Calendario personal para organizar turnos, francos y descansos.">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,7 +27,8 @@
         </div>
       </div>
       <div class="header-actions">
-        <span class="mode-badge" id="modeBadge">Rotación automática</span>
+        <span class="mode-badge" id="modeBadge">Mi calendario</span>
+        <button class="soft-button theme-toggle" id="themeToggle" type="button" aria-pressed="false">☾ Modo oscuro</button>
         <button class="icon-button install-button" id="installButton" type="button" hidden aria-label="Instalar aplicación" title="Instalar aplicación">↓</button>
       </div>
     </header>
@@ -53,6 +54,7 @@
         </div>
 
         <div class="summary-strip" id="monthSummary" aria-live="polite"></div>
+        <section class="hours-summary" id="hoursSummary" aria-live="polite"></section>
         <div class="calendar-card">
           <div class="weekdays" aria-hidden="true">
             <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
@@ -136,7 +138,29 @@
         </section>
 
         <section class="settings-card">
-          <h3>5. Respaldo de datos</h3>
+          <h3>5. Cómputo de horas nocturnas</h3>
+          <p class="helper">Configurá el tramo horario que querés contabilizar como nocturno. El valor inicial es de 21:00 a 05:00. Esta herramienta registra horas y no calcula adicionales salariales ni horas extra.</p>
+          <div class="form-grid two-cols">
+            <label class="field"><span>Inicio del horario nocturno</span><input id="nightStart" type="time" value="21:00"></label>
+            <label class="field"><span>Fin del horario nocturno</span><input id="nightEnd" type="time" value="05:00"></label>
+          </div>
+          <p class="info-callout"><strong>Cómo lo cuenta:</strong> suma únicamente los minutos trabajados dentro del horario nocturno configurado. Por defecto, contabiliza desde las 21:00 inclusive hasta las 05:00 exclusive.</p>
+        </section>
+
+        <section class="settings-card">
+          <h3>6. Feriados y días no laborables</h3>
+          <p class="helper">Incluye feriados nacionales de Argentina para 2026. Agregá los feriados provinciales, locales o propios de otros años según dónde trabaja cada persona. Por ejemplo, en 2026 hubo fechas especiales el 10/11 para Córdoba y CABA y el 11/11 para la Provincia de Buenos Aires. Los días no laborables se registran aparte y no se cuentan como feriados automáticamente.</p>
+          <form id="holidayForm" class="holiday-form">
+            <label class="field"><span>Fecha</span><input id="holidayDate" type="date" required></label>
+            <label class="field"><span>Descripción</span><input id="holidayName" type="text" maxlength="90" placeholder="Ej. Feriado provincial" required></label>
+            <label class="field"><span>Tipo</span><select id="holidayType"><option value="feriado">Feriado</option><option value="noLaborable">Día no laborable</option></select></label>
+            <button class="primary-button" type="submit">＋ Agregar fecha</button>
+          </form>
+          <div id="holidayList" class="holiday-list"></div>
+        </section>
+
+        <section class="settings-card">
+          <h3>7. Respaldo de datos</h3>
           <p class="helper">Exportá un archivo JSON para guardar tu configuración o transferirla a otro dispositivo. La importación reemplaza los datos actuales.</p>
           <div class="backup-actions">
             <button class="soft-button" id="exportButton" type="button">↓ Exportar respaldo</button>
@@ -185,7 +209,7 @@
       </section>
     </main>
 
-    <footer class="app-footer"><span>Mis Turnos · Versión 2.0</span><span>Calendarios y perfiles independientes</span></footer>
+    <footer class="app-footer"><span>Mis Turnos · Versión 4.0</span><span>Calendarios y perfiles independientes</span></footer>
   </div>
 
   <dialog id="eventDialog" class="event-dialog">
