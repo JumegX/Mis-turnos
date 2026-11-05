@@ -36,7 +36,6 @@
     <nav class="main-tabs" aria-label="Secciones">
       <button class="tab active" type="button" data-view="calendarView"><span aria-hidden="true">▦</span> Calendario</button>
       <button class="tab" type="button" data-view="settingsView"><span aria-hidden="true">⚙</span> Configuración</button>
-      <button class="tab" type="button" data-view="profilesView"><span aria-hidden="true">♙</span> Perfiles</button>
     </nav>
 
     <main>
@@ -79,7 +78,7 @@
           </div>
         </section>
 
-        <p class="privacy-note"><span aria-hidden="true">🔒</span> Tus horarios se guardan en este dispositivo. Los perfiles compartidos se importan por archivo y no borran tu planificación anterior.</p>
+        <p class="privacy-note"><span aria-hidden="true">🔒</span> Tus horarios y observaciones se guardan en este dispositivo.</p>
       </section>
 
       <section id="settingsView" class="view hidden">
@@ -98,27 +97,9 @@
           </div>
         </section>
 
-        <section class="settings-card" id="rotationSettings">
-          <h3>2. Datos para calcular la rotación</h3>
-          <p class="helper">Indicá un franco que tengas confirmado. Desde esa fecha la aplicación calcula los próximos ciclos. Si todavía no querés calcular una rotación, dejá este apartado sin configurar.</p>
-          <div class="form-grid two-cols">
-            <label class="field"><span>Fecha del franco de referencia</span><input id="anchorFranco" type="date"></label>
-            <label class="field"><span>Turno que comienza después de ese franco</span><select id="firstShift"></select></label>
-            <label class="field"><span>Días de trabajo por bloque</span><input id="workDays" type="number" min="1" max="31" inputmode="numeric"></label>
-            <label class="field"><span>Días de descanso antes del franco</span><input id="restDays" type="number" min="0" max="14" inputmode="numeric"></label>
-          </div>
-          <p class="info-callout"><strong>Turno nocturno:</strong> si el último turno termina al día siguiente (por ejemplo, 23:00–06:00), se marca la salida a las 06:00 y el franco queda ubicado después de esa salida. El día de salida no se cuenta como franco.</p>
-        </section>
-
-        <section class="settings-card hidden" id="fixedSettings">
-          <h3>2. Configurar turnos fijos</h3>
-          <p class="helper">Asigná un turno, franco o descanso a cada día. La configuración se repite todas las semanas.</p>
-          <div id="fixedRules" class="fixed-rules"></div>
-        </section>
-
         <section class="settings-card">
           <div class="card-title-row">
-            <div><h3>3. Mis turnos y horarios</h3><p class="helper">Podés definir turnos de cualquier duración. Para una carga puntual también hay jornadas rápidas de 4, 6, 8 y 12 horas, horas extra y segundos turnos.</p></div>
+            <div><h3>2. Mis turnos y horarios</h3><p class="helper">Podés definir turnos de cualquier duración. Para una carga puntual también hay jornadas rápidas de 4, 6, 8 y 12 horas, horas extra y segundos turnos.</p></div>
           </div>
           <div id="shiftsEditor" class="shifts-editor"></div>
           <form id="addShiftForm" class="add-shift-form">
@@ -131,14 +112,32 @@
           </form>
         </section>
 
+        <section class="settings-card" id="rotationSettings">
+          <h3>3. Datos para calcular la rotación</h3>
+          <p class="helper">Indicá un franco que tengas confirmado. Desde esa fecha la aplicación calcula los próximos ciclos. Si todavía no querés calcular una rotación, dejá este apartado sin configurar.</p>
+          <div class="form-grid two-cols">
+            <label class="field"><span>Fecha del franco de referencia</span><input id="anchorFranco" type="date"></label>
+            <label class="field"><span>Turno que comienza después de ese franco</span><select id="firstShift"></select></label>
+            <label class="field"><span>Días de trabajo por bloque</span><input id="workDays" type="number" min="1" max="31" inputmode="numeric"></label>
+            <label class="field"><span>Días de descanso antes del franco</span><input id="restDays" type="number" min="0" max="14" inputmode="numeric"></label>
+          </div>
+          <p class="info-callout"><strong>Turno nocturno:</strong> si el último turno termina al día siguiente (por ejemplo, 23:00–06:00), se marca la salida a las 06:00 y el franco queda ubicado después de esa salida. El día de salida no se cuenta como franco.</p>
+        </section>
+
+        <section class="settings-card hidden" id="fixedSettings">
+          <h3>3. Configurar turnos fijos</h3>
+          <p class="helper">Asigná un turno, franco o descanso a cada día. La configuración se repite todas las semanas.</p>
+          <div id="fixedRules" class="fixed-rules"></div>
+        </section>
+
         <section class="settings-card">
           <h3>4. Colores del calendario</h3>
           <p class="helper">Elegí un color para diferenciar los francos, los descansos y las salidas.</p>
           <div class="color-settings" id="specialColors"></div>
         </section>
 
-        <section class="settings-card">
-          <h3>5. Cómputo de horas nocturnas</h3>
+        <section class="settings-card hidden" id="nightHoursSettings" aria-hidden="true">
+          <h3>Cómputo de horas nocturnas</h3>
           <p class="helper">Configurá el tramo horario que querés contabilizar como nocturno. El valor inicial es de 21:00 a 05:00. Esta herramienta registra horas y no calcula adicionales salariales ni horas extra.</p>
           <div class="form-grid two-cols">
             <label class="field"><span>Inicio del horario nocturno</span><input id="nightStart" type="time" value="21:00"></label>
@@ -147,8 +146,8 @@
           <p class="info-callout"><strong>Cómo lo cuenta:</strong> suma únicamente los minutos trabajados dentro del horario nocturno configurado. Por defecto, contabiliza desde las 21:00 inclusive hasta las 05:00 exclusive.</p>
         </section>
 
-        <section class="settings-card">
-          <h3>6. Feriados y días no laborables</h3>
+        <section class="settings-card hidden" id="holidaySettings" aria-hidden="true">
+          <h3>Feriados y días no laborables</h3>
           <p class="helper">Incluye feriados nacionales de Argentina para 2026. Agregá los feriados provinciales, locales o propios de otros años según dónde trabaja cada persona. Por ejemplo, en 2026 hubo fechas especiales el 10/11 para Córdoba y CABA y el 11/11 para la Provincia de Buenos Aires. Los días no laborables se registran aparte y no se cuentan como feriados automáticamente.</p>
           <form id="holidayForm" class="holiday-form">
             <label class="field"><span>Fecha</span><input id="holidayDate" type="date" required></label>
@@ -160,7 +159,7 @@
         </section>
 
         <section class="settings-card">
-          <h3>7. Respaldo de datos</h3>
+          <h3>5. Respaldo de datos</h3>
           <p class="helper">Exportá un archivo JSON para guardar tu configuración o transferirla a otro dispositivo. La importación reemplaza los datos actuales.</p>
           <div class="backup-actions">
             <button class="soft-button" id="exportButton" type="button">↓ Exportar respaldo</button>
@@ -170,7 +169,7 @@
         </section>
       </section>
 
-      <section id="profilesView" class="view hidden">
+      <section id="profilesView" class="view hidden" aria-hidden="true">
         <div class="section-heading">
           <p class="eyebrow">PLANIFICACIÓN COMPARTIDA</p>
           <h2>Perfiles</h2>
@@ -209,7 +208,7 @@
       </section>
     </main>
 
-    <footer class="app-footer"><span>Mis Turnos · Versión 4.0</span><span>Calendarios y perfiles independientes</span></footer>
+    <footer class="app-footer"><span>Mis Turnos · Versión 5.0</span><span>Calendario personal y control de jornadas</span></footer>
   </div>
 
   <dialog id="eventDialog" class="event-dialog">

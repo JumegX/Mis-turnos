@@ -1,6 +1,6 @@
 'use strict';
 
-// Mis Turnos v4 — cómputo de horas nocturnas (21:00–05:00), feriados y modo oscuro.
+// Mis Turnos v5 — valores de cómputo nocturno y feriados precargados, sin edición desde Configuración.
 const STORAGE_KEY = 'mis-turnos-data-v2';
 const WEEKDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
