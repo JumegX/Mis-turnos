@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Mis Turnos - Calendario de trabajo",
   "short_name": "Mis Turnos",
-  "description": "Calendario para organizar jornadas, turnos, francos, descansos y horas nocturnas.",
+  "description": "Calendario accesible para organizar jornadas, turnos, francos y descansos.",
   "lang": "es-AR",
   "start_url": "./",
   "scope": "./",

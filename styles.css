@@ -80,3 +80,72 @@ body.dark-mode .event-dialog{background:#151e30;color:#edf1fb}body.dark-mode .ev
 body.dark-mode .hours-metric{background:#202b42}body.dark-mode .hours-metric span{color:#b5c0d7}body.dark-mode .hours-metric strong{color:#edf1ff}body.dark-mode .hours-metric.emphasis{background:#29365a;border-color:#4b5a91}body.dark-mode .hours-metric.emphasis strong{color:#cbd2ff}
 body.dark-mode .holiday-chip{background:#61382f;color:#ffd8cd}body.dark-mode .nonwork-chip{background:#51492d;color:#f4e6ad}body.dark-mode .profile-marker{background:#303c61;color:#d8e0ff}body.dark-mode .note-dot,body.dark-mode .profile-hint{color:#b2c0f1}body.dark-mode .app-footer{color:#8895ad}body.dark-mode .privacy-note{color:#9eabc4}body.dark-mode .toast{background:#e8edfb;color:#1a2540}
 body.dark-mode .legend-item{color:#b5c0d7}body.dark-mode .fixed-rule label{color:#dce4f8}body.dark-mode .color-setting{background:#182238;border-color:#34415d}
+
+
+/* Mis Turnos v6: accesibilidad, lista mensual y navegación inferior. */
+.calendar-view-options{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-5px 0 13px;flex-wrap:wrap}
+.view-switch{display:flex;gap:5px;padding:4px;border:1px solid var(--line);background:var(--white);border-radius:11px}
+.display-option{appearance:none;border:0;background:transparent;color:var(--muted);border-radius:8px;padding:9px 12px;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+.display-option.active{background:#e9edff;color:#3d4da7}
+.enlarge-toggle{min-height:36px;font-weight:800}
+.calendar-bottom-nav{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:12px 0 17px}
+.calendar-bottom-nav button{min-height:42px;font-weight:800}
+.calendar-list{display:grid;gap:7px}
+.month-list-item{appearance:none;width:100%;display:flex;align-items:center;gap:12px;text-align:left;padding:12px 13px;border:1px solid var(--line);border-left:5px solid #dce3f5;border-radius:12px;background:var(--white);color:var(--ink);cursor:pointer;min-height:68px}
+.month-list-item.selected{outline:2px solid #6573d3;background:#f8f9ff}
+.list-date{flex:0 0 54px;display:flex;flex-direction:column;align-items:center;gap:1px;border-right:1px solid var(--line);padding-right:9px}
+.list-date strong{font-size:22px;line-height:1.1;font-variant-numeric:tabular-nums}
+.list-date small{font-size:10px;color:var(--muted);font-weight:750}
+.list-copy{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.list-event-title{font-size:13px;line-height:1.3;font-weight:850}
+.list-copy small{font-size:11px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere}
+.list-holiday-chip{flex:0 0 auto;max-width:92px;font-size:9px;padding:5px 6px}
+body.large-interface .app-frame{max-width:1280px}
+body.large-interface .app-frame,body.large-interface .app-frame button,body.large-interface .app-frame input,body.large-interface .app-frame select,body.large-interface .app-frame textarea{font-size:1.14em}
+body.large-interface .eyebrow{font-size:12px}
+body.large-interface .brand h1{font-size:30px}
+body.large-interface .month-toolbar h2,body.large-interface .section-heading h2{font-size:32px}
+body.large-interface .day-cell{min-height:126px;padding:10px 8px}
+body.large-interface .day-number{font-size:15px}
+body.large-interface .day-event{font-size:11px;line-height:1.35;padding:6px}
+body.large-interface .event-note,body.large-interface .empty-day,body.large-interface .legend-item{font-size:11px}
+body.large-interface .month-list-item{min-height:84px;padding:15px}
+body.large-interface .list-date strong{font-size:27px}
+body.large-interface .list-date small,body.large-interface .list-copy small{font-size:13px}
+body.large-interface .list-event-title{font-size:16px}
+body.large-interface .field>span,body.large-interface .helper,body.large-interface .small-note,body.large-interface .selected-description{font-size:13px}
+body.large-interface .settings-card{padding:23px}
+body.dark-mode .view-switch{background:#151e30;border-color:#34415d}
+body.dark-mode .display-option{color:#b4bfd6}
+body.dark-mode .display-option.active{background:#29365a;color:#d9dfff}
+body.dark-mode .month-list-item{background:#151e30;border-color:#34415d;color:#edf1fb}
+body.dark-mode .month-list-item.selected{background:#222e4b;outline-color:#9ba9ff}
+body.dark-mode .list-date{border-color:#34415d}
+body.dark-mode .list-date small,body.dark-mode .list-copy small{color:#b3bfd6}
+.app-footer-expanded{align-items:flex-start;flex-direction:column;gap:10px;padding:22px 4px 6px;border-top:1px solid var(--line);margin-top:10px}
+.footer-branding,.footer-credit{display:flex;flex-direction:column;gap:4px;line-height:1.45}
+.footer-branding strong{font-size:12px;color:var(--ink)}
+.footer-branding span,.footer-credit span{font-size:10px;color:var(--muted)}
+.donation-button{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-size:11px;font-weight:850;border-color:#d6dafa;color:#4554ae}
+body.dark-mode .app-footer-expanded{border-color:#34415d}
+body.dark-mode .footer-branding strong{color:#edf1fb}
+body.dark-mode .donation-button{color:#dce2ff;border-color:#53618e}
+@media(max-width:700px){
+ .calendar-view-options{align-items:stretch}
+ .view-switch{flex:1;display:grid;grid-template-columns:1fr 1fr}
+ .display-option{padding:10px 7px;font-size:10px}
+ .enlarge-toggle{width:100%}
+ .calendar-bottom-nav{display:grid;grid-template-columns:1fr auto 1fr;gap:6px}
+ .calendar-bottom-nav button{padding:9px 7px;font-size:10px;white-space:nowrap}
+ .month-list-item{gap:9px;padding:10px 9px}
+ .list-date{flex-basis:46px;padding-right:7px}
+ .list-date strong{font-size:20px}
+ .list-event-title{font-size:11px}
+ .list-copy small{font-size:9px}
+ .list-holiday-chip{font-size:7px;max-width:68px}
+ body.large-interface .day-cell{min-height:104px;padding:6px 3px}
+ body.large-interface .day-number{font-size:13px}
+ body.large-interface .day-event{font-size:9px;padding:4px 2px}
+ body.large-interface .app-frame{padding-left:9px;padding-right:9px}
+}
+@media(max-width:380px){.calendar-bottom-nav button{font-size:9px;padding:8px 4px}.list-holiday-chip{display:none}}

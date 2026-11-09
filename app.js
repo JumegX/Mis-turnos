@@ -1,7 +1,8 @@
 'use strict';
 
-// Mis Turnos v5 — valores de cómputo nocturno y feriados precargados, sin edición desde Configuración.
+// Mis Turnos v7 — valores de cómputo nocturno y feriados precargados, sin edición desde Configuración.
 const STORAGE_KEY = 'mis-turnos-data-v2';
+const UI_PREFS_KEY = 'mis-turnos-ui-v1';
 const WEEKDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const DEFAULT_COLORS = { franco: '#F7D7DE', descanso: '#DDE9EA', exit: '#FFF0C2', normal: '#DCEBFF', extra: '#FFE0BD', second: '#E8E0FB', profile: '#D8E4FF' };
@@ -30,13 +31,15 @@ function normalizeHourRules(rules = {}) {
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+function safeStorageGet(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
+function safeStorageSet(key, value) { try { localStorage.setItem(key, value); return true; } catch (_) { return false; } }
 const uid = (prefix = 'id') => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
 function emptyPlanner(name = 'Mi calendario') {
   return {
     name,
-    mode: 'manual',
-    settings: { anchorFranco: '', firstShiftId: '', workDays: 5, restDays: 0, hourRules: clone(DEFAULT_HOUR_RULES) },
+    mode: 'rotation',
+    settings: { anchorFranco: '', firstShiftId: '', rotationDirection: 'forward', workDays: 5, restDays: 0, hourRules: clone(DEFAULT_HOUR_RULES) },
     shifts: [],
     holidays: clone(DEFAULT_HOLIDAYS_2026),
     colors: clone(DEFAULT_COLORS),
@@ -51,8 +54,8 @@ function normalizePlanner(input, fallbackName = 'Mi calendario') {
   return {
     ...base, ...p,
     name: String(p.name || fallbackName),
-    mode: ['rotation', 'fixed', 'manual'].includes(p.mode) ? p.mode : 'manual',
-    settings: { ...base.settings, ...(p.settings || {}), hourRules: normalizeHourRules(p.settings?.hourRules) },
+    mode: p.mode === 'fixed' ? 'fixed' : 'rotation',
+    settings: { ...base.settings, ...(p.settings || {}), rotationDirection: p.settings?.rotationDirection === 'reverse' ? 'reverse' : 'forward', hourRules: normalizeHourRules(p.settings?.hourRules) },
     shifts: Array.isArray(p.shifts) ? p.shifts : [],
     holidays: Array.isArray(p.holidays) ? p.holidays : clone(DEFAULT_HOLIDAYS_2026),
     colors: { ...base.colors, ...(p.colors || {}) },
@@ -67,7 +70,7 @@ function newState() {
 }
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = safeStorageGet(STORAGE_KEY);
     if (!raw) return newState();
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.profiles)) {
@@ -99,6 +102,25 @@ let selectedDate = isoDate(new Date());
 let toastTimer = null;
 let installPrompt = null;
 let dialogEditingDate = null;
+function loadUiPreferences() {
+  try {
+    const saved = JSON.parse(safeStorageGet(UI_PREFS_KEY) || '{}');
+    return { calendarMode: saved.calendarMode === 'list' ? 'list' : 'grid', largeInterface: saved.largeInterface === true };
+  } catch (_) { return { calendarMode: 'grid', largeInterface: false }; }
+}
+let uiPreferences = loadUiPreferences();
+function saveUiPreferences() { safeStorageSet(UI_PREFS_KEY, JSON.stringify(uiPreferences)); }
+function applyDisplayPreferences() {
+  document.body.classList.toggle('large-interface', uiPreferences.largeInterface);
+  $('#calendarCard').classList.toggle('hidden', uiPreferences.calendarMode !== 'grid');
+  $('#calendarList').classList.toggle('hidden', uiPreferences.calendarMode !== 'list');
+  $('#calendarGridView').classList.toggle('active', uiPreferences.calendarMode === 'grid');
+  $('#calendarListView').classList.toggle('active', uiPreferences.calendarMode === 'list');
+  $('#calendarGridView').setAttribute('aria-pressed', String(uiPreferences.calendarMode === 'grid'));
+  $('#calendarListView').setAttribute('aria-pressed', String(uiPreferences.calendarMode === 'list'));
+  $('#largeInterfaceToggle').setAttribute('aria-pressed', String(uiPreferences.largeInterface));
+  $('#largeInterfaceToggle').textContent = uiPreferences.largeInterface ? 'A− Tamaño normal' : 'A+ Agrandar vista';
+}
 
 function isoDate(date) {
   const y = date.getFullYear();
@@ -167,7 +189,7 @@ function saveData() {
   const snapshot = normalizePlanner(data, activeProfile?.name || 'Mi calendario');
   if (index >= 0) appState.profiles[index] = { ...appState.profiles[index], name: snapshot.name, planner: snapshot };
   appState.activeProfileId = activeProfileId;
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appState)); }
+  try { safeStorageSet(STORAGE_KEY, JSON.stringify(appState)); }
   catch (error) { showToast('No se pudieron guardar los cambios. Exportá un respaldo y revisá el espacio disponible.'); }
 }
 function cloneEntry(event) { return event ? clone(event) : null; }
@@ -179,6 +201,7 @@ function rotationMap(endISO) {
   if (!anchor || endISO < anchor || !data.shifts.length) return map;
   map.set(anchor, { type: 'franco', note: 'Franco de referencia' });
   let shiftIndex = Math.max(0, data.shifts.findIndex((s) => s.id === data.settings.firstShiftId));
+  const rotationStep = data.settings.rotationDirection === 'reverse' ? -1 : 1;
   let cursor = addDays(anchor, 1);
   const workDays = Math.max(1, Math.min(31, Number(data.settings.workDays) || 5));
   const restDays = Math.max(0, Math.min(14, Number(data.settings.restDays) || 0));
@@ -196,7 +219,7 @@ function rotationMap(endISO) {
     for (let i = 0; i < restDays; i += 1) { map.set(cursor, { type: 'descanso', note: 'Descanso previo al franco' }); cursor = addDays(cursor, 1); }
     map.set(cursor, { type: 'franco' });
     cursor = addDays(cursor, 1);
-    shiftIndex = (shiftIndex + 1) % data.shifts.length;
+    shiftIndex = (shiftIndex + rotationStep + data.shifts.length) % data.shifts.length;
   }
   return map;
 }
@@ -313,6 +336,8 @@ function renderCalendar() {
     cell.addEventListener('click', () => { selectedDate = dateISO; if (!sameMonth(date, visibleMonth)) visibleMonth = new Date(date.getFullYear(), date.getMonth(), 1); renderCalendar(); });
     grid.appendChild(cell);
   });
+  renderMonthList();
+  applyDisplayPreferences();
   $('#monthSummary').innerHTML = `
     <div class="summary-item"><span>Jornadas</span><strong>${counts.shift}</strong></div>
     <div class="summary-item"><span>Francos</span><strong>${counts.franco}</strong></div>
@@ -321,6 +346,57 @@ function renderCalendar() {
   $('#hoursSummary').innerHTML=`<div class="hours-summary-title">Cómputo de horas del mes <small>(según los horarios y feriados cargados)</small></div><div class="hours-summary-grid"><div class="hours-metric emphasis"><span>Horas nocturnas (21:00–05:00)</span><strong>${formatHours(hours.night)}</strong></div><div class="hours-metric"><span>Días feriados</span><strong>${hours.holidayDays.size}</strong></div><div class="hours-metric"><span>Horas trabajadas en feriados</span><strong>${formatHours(hours.holiday)}</strong></div><div class="hours-metric"><span>Días no laborables</span><strong>${hours.nonLaborableDays.size}</strong></div><div class="hours-metric"><span>Horas en días no laborables</span><strong>${formatHours(hours.nonLaborable)}</strong></div></div><p class="hours-summary-foot">Las horas nocturnas se cuentan por minuto dentro del período configurado (por defecto, de 21:00 a 05:00). Los días feriados se cuentan aunque no haya trabajo asignado; las horas de feriado incluyen únicamente el tiempo efectivamente trabajado. Los días no laborables se muestran por separado.</p>`;
   renderLegend(); renderSelectedDay();
 }
+function renderMonthList() {
+  const list = $('#calendarList');
+  list.innerHTML = '';
+  const year = visibleMonth.getFullYear();
+  const month = visibleMonth.getMonth();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  for (let day = 1; day <= totalDays; day += 1) {
+    const dateISO = isoDate(new Date(year, month, day, 12));
+    const info = getDisplayInfo(dateISO);
+    const event = info.event;
+    const holiday = getHoliday(dateISO, info.source);
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'month-list-item';
+    if (dateISO === selectedDate) item.classList.add('selected');
+    const date = dateFromISO(dateISO);
+    const dateBlock = document.createElement('span');
+    dateBlock.className = 'list-date';
+    dateBlock.innerHTML = `<strong>${String(day).padStart(2,'0')}</strong><small>${WEEKDAYS[date.getDay()]}</small>`;
+    const copy = document.createElement('span');
+    copy.className = 'list-copy';
+    const title = document.createElement('strong');
+    title.className = 'list-event-title';
+    title.textContent = event ? eventTitle(event, info.source) : 'Sin asignación';
+    const detail = document.createElement('small');
+    const note = event?.note && !['Franco de referencia','Descanso previo al franco'].includes(event.note) ? ` · ${event.note}` : '';
+    detail.textContent = `${event ? eventName(event, info.source) : 'No hay un turno cargado para este día.'}${note}${data.dayNotes?.[dateISO] ? ` · Observación: ${data.dayNotes[dateISO]}` : ''}`;
+    copy.append(title, detail);
+    item.append(dateBlock, copy);
+    if (event) {
+      const color = eventColor(event, info.source);
+      item.style.borderLeftColor = color;
+    }
+    if (holiday) {
+      const tag = document.createElement('span');
+      tag.className = holiday.type === 'feriado' ? 'holiday-chip list-holiday-chip' : 'nonwork-chip list-holiday-chip';
+      tag.textContent = holiday.type === 'feriado' ? 'FERIADO' : 'NO LABORABLE';
+      tag.title = holiday.name;
+      item.appendChild(tag);
+    }
+    if (info.received && dateISO === info.received.effectiveDate) {
+      const marker = document.createElement('span');
+      marker.className = 'profile-marker';
+      marker.textContent = 'Nuevo perfil en vigencia';
+      item.appendChild(marker);
+    }
+    item.addEventListener('click', () => { selectedDate = dateISO; renderCalendar(); });
+    list.appendChild(item);
+  }
+}
+
 function renderLegend() {
   const entries = [
     ...data.shifts.map((s) => ({ label: `${s.name} (${s.start}–${s.end})`, color: s.color })),
@@ -356,6 +432,7 @@ function renderSettings() {
   $('#workDays').value = data.settings.workDays; $('#restDays').value = data.settings.restDays;
   $('#firstShift').innerHTML = data.shifts.map((s) => `<option value="${safeText(s.id)}">${safeText(s.name)} (${safeText(s.start)}–${safeText(s.end)})</option>`).join('');
   $('#firstShift').value = data.settings.firstShiftId || '';
+  $('#rotationDirection').value = data.settings.rotationDirection || 'forward';
   $('#nightStart').value = data.settings.hourRules?.nightStart || DEFAULT_HOUR_RULES.nightStart;
   $('#nightEnd').value = data.settings.hourRules?.nightEnd || DEFAULT_HOUR_RULES.nightEnd;
   renderFixedRules(); renderShiftsEditor(); renderSpecialColors(); renderHolidayList();
@@ -378,7 +455,7 @@ function renderShiftsEditor() {
       <label class="field"><span>Desde</span><input data-shift-field="start" type="time" value="${safeText(s.start)}"></label>
       <label class="field"><span>Hasta</span><input data-shift-field="end" type="time" value="${safeText(s.end)}"></label>
       <label class="field"><span>Color</span><input data-shift-field="color" type="color" value="${safeText(s.color)}"></label>
-      <div class="move-controls"><button class="mini-button" type="button" data-move="up" ${i===0?'disabled':''}>↑</button><button class="mini-button" type="button" data-move="down" ${i===data.shifts.length-1?'disabled':''}>↓</button><button class="mini-button delete-shift" type="button" data-delete-shift>×</button></div>
+      <div class="move-controls"><button class="mini-button" type="button" data-move="up" aria-label="Mover ${safeText(s.name)} hacia arriba" title="Mover hacia arriba" ${i===0?'disabled':''}>↑</button><button class="mini-button" type="button" data-move="down" aria-label="Mover ${safeText(s.name)} hacia abajo" title="Mover hacia abajo" ${i===data.shifts.length-1?'disabled':''}>↓</button><button class="mini-button delete-shift" type="button" data-delete-shift>×</button></div>
     </div>`).join('') : '<p class="empty-message">Todavía no hay turnos configurados. Podés crear los que necesites con jornadas de 4, 6, 8, 12 horas o cualquier duración.</p>';
   $$('[data-shift-card]').forEach((card) => {
     const id = card.dataset.shiftCard;
@@ -459,7 +536,7 @@ function openEventDialog(dateISO=selectedDate) {
   if(current?.type==='shift') { const s=shiftById(current.shiftId,info.source); if(s)segments=[{start:s.start,end:s.end,kind:'normal'}]; }
   else if(current?.type==='work') segments=current.segments||[];
   fillSegmentEditor(segments); updateEventTypeFields();
-  $('#autoExit').checked=current?.type==='exit' || (segments.length>0 && timeMinutes(segments[segments.length-1].end)<=timeMinutes(segments[segments.length-1].start));
+  $('#autoExit').checked = true; // La salida al día siguiente se registra siempre que el horario cruza medianoche.
   $('#deleteManualButton').hidden=!isManual;
   $('#eventDialog').showModal();
 }
@@ -475,7 +552,7 @@ function submitEvent(event) {
   if(type==='exit') { const shift=data.shifts[0]; if(shift)entry.shiftId=shift.id; if(!entry.note)entry.note='Salida de turno'; }
   const next=addDays(dateISO,1); if(data.manualEntries[next]?.autoGeneratedFrom===dateISO)delete data.manualEntries[next];
   data.manualEntries[dateISO]=entry;
-  if(type==='work' && $('#autoExit').checked) {
+  if(type==='work') {
     const last=entry.segments[entry.segments.length-1];
     if(timeMinutes(last.end)<=timeMinutes(last.start))data.manualEntries[next]={type:'exit',note:`Salida ${last.end}`,autoGeneratedFrom:dateISO};
   }
@@ -506,7 +583,7 @@ async function importBackup(file) {
       activeProfileId=appState.activeProfileId; activeProfile=appState.profiles.find((p)=>p.id===activeProfileId)||appState.profiles[0]; data=clone(activeProfile.planner);
     } else if(Array.isArray(parsed.shifts)&&parsed.settings) { data=normalizePlanner(parsed,'Mi calendario'); activeProfile.planner=clone(data); }
     else throw new Error('Formato');
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(appState)); renderEverything(); showToast('Respaldo importado.');
+    safeStorageSet(STORAGE_KEY,JSON.stringify(appState)); renderEverything(); showToast('Respaldo importado.');
   }catch(error){showToast('No se pudo importar: el respaldo no tiene un formato reconocido.');}
   finally{$('#importFile').value='';}
 }
@@ -529,8 +606,8 @@ function renderProfiles() {
 function renderReceivedProfiles() {
   const received=$('#receivedProfiles');
   received.innerHTML=appState.receivedProfiles.length?appState.receivedProfiles.map((p)=>`<div class="profile-row"><div class="profile-row-copy"><strong>${safeText(p.name)}</strong><small>${safeText(p.employeeName||'Empleado')} · Vigencia desde ${safeText(p.effectiveDate)} hasta ${safeText(p.endDate)}</small></div><div class="profile-row-actions"><button type="button" class="${p.id===appState.activeReceivedProfileId?'primary-button':'soft-button'}" data-activate-received="${safeText(p.id)}">${p.id===appState.activeReceivedProfileId?'Visible en calendario':'Mostrar'}</button><button type="button" class="soft-button danger-outline" data-delete-received="${safeText(p.id)}">Quitar</button></div></div>`).join(''):'<p class="empty-message">Todavía no recibiste perfiles compartidos.</p>';
-  $$('[data-activate-received]').forEach((b)=>b.addEventListener('click',()=>{appState.activeReceivedProfileId=b.dataset.activateReceived; localStorage.setItem(STORAGE_KEY,JSON.stringify(appState)); renderReceivedProfiles(); renderCalendar(); showToast('Perfil recibido visible en el calendario.');}));
-  $$('[data-delete-received]').forEach((b)=>b.addEventListener('click',()=>{const id=b.dataset.deleteReceived;appState.receivedProfiles=appState.receivedProfiles.filter((p)=>p.id!==id);if(appState.activeReceivedProfileId===id)appState.activeReceivedProfileId='';localStorage.setItem(STORAGE_KEY,JSON.stringify(appState));renderReceivedProfiles();renderCalendar();showToast('Perfil recibido quitado.');}));
+  $$('[data-activate-received]').forEach((b)=>b.addEventListener('click',()=>{appState.activeReceivedProfileId=b.dataset.activateReceived; safeStorageSet(STORAGE_KEY,JSON.stringify(appState)); renderReceivedProfiles(); renderCalendar(); showToast('Perfil recibido visible en el calendario.');}));
+  $$('[data-delete-received]').forEach((b)=>b.addEventListener('click',()=>{const id=b.dataset.deleteReceived;appState.receivedProfiles=appState.receivedProfiles.filter((p)=>p.id!==id);if(appState.activeReceivedProfileId===id)appState.activeReceivedProfileId='';safeStorageSet(STORAGE_KEY,JSON.stringify(appState));renderReceivedProfiles();renderCalendar();showToast('Perfil recibido quitado.');}));
 }
 function removeLocalProfile(id) {
   if(appState.profiles.length<=1){showToast('Debe quedar al menos un perfil.');return;}
@@ -538,7 +615,7 @@ function removeLocalProfile(id) {
   if(!confirm(`¿Eliminar el perfil ${target.name}? Se borrará su planificación local.`))return;
   appState.profiles=appState.profiles.filter((p)=>p.id!==id);
   if(activeProfileId===id){activeProfileId=appState.profiles[0].id;activeProfile=appState.profiles[0];data=clone(activeProfile.planner);appState.activeProfileId=activeProfileId;}
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(appState));renderEverything();renderProfiles();showToast('Perfil eliminado.');
+  safeStorageSet(STORAGE_KEY,JSON.stringify(appState));renderEverything();renderProfiles();showToast('Perfil eliminado.');
 }
 function createLocalProfile(name) {
   const p={id:uid('profile'),name:name.trim(),planner:emptyPlanner(name.trim())};
@@ -572,7 +649,7 @@ async function importSharedProfile(file) {
     if(p.kind!=='mis-turnos-profile'||!p.effectiveDate||!p.endDate||!p.entries||typeof p.entries!=='object')throw new Error('Formato');
     const id=uid('received');
     appState.receivedProfiles.push({...p,id,enabled:true});appState.activeReceivedProfileId=id;
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(appState));renderProfiles();renderReceivedProfiles();renderCalendar();showToast(`Perfil ${p.name||''} importado. Se activa desde ${p.effectiveDate}.`);
+    safeStorageSet(STORAGE_KEY,JSON.stringify(appState));renderProfiles();renderReceivedProfiles();renderCalendar();showToast(`Perfil ${p.name||''} importado. Se activa desde ${p.effectiveDate}.`);
   }catch(error){console.error('Error al importar perfil:',error);showToast('No se pudo importar. Seleccioná un archivo .turnos.json válido.');}
   finally{$('#importProfileFile').value='';}
 }
@@ -582,6 +659,10 @@ function renderEverything(){renderSettings();renderCalendar();renderProfiles();}
 $$('.tab').forEach((tab)=>tab.addEventListener('click',()=>setView(tab.dataset.view)));
 $('#prevMonth').addEventListener('click',()=>{visibleMonth=new Date(visibleMonth.getFullYear(),visibleMonth.getMonth()-1,1);renderCalendar();});
 $('#nextMonth').addEventListener('click',()=>{visibleMonth=new Date(visibleMonth.getFullYear(),visibleMonth.getMonth()+1,1);renderCalendar();});
+$('#calendarGridView').addEventListener('click',()=>{uiPreferences.calendarMode='grid';saveUiPreferences();applyDisplayPreferences();});
+$('#calendarListView').addEventListener('click',()=>{uiPreferences.calendarMode='list';saveUiPreferences();applyDisplayPreferences();});
+$('#largeInterfaceToggle').addEventListener('click',()=>{uiPreferences.largeInterface=!uiPreferences.largeInterface;saveUiPreferences();applyDisplayPreferences();});
+
 $('#todayButton').addEventListener('click',()=>{const d=new Date();visibleMonth=new Date(d.getFullYear(),d.getMonth(),1);selectedDate=isoDate(d);renderCalendar();});
 $('#manageDayButton').addEventListener('click',()=>openEventDialog(selectedDate));
 $('#closeDialog').addEventListener('click',closeEventDialog);$('#cancelDialog').addEventListener('click',closeEventDialog);
@@ -595,11 +676,10 @@ $('#addShiftForm').addEventListener('submit',(event)=>{
   const id=uid('shift');data.shifts.push({id,name,start,end,color:$('#newShiftColor').value});if(!data.settings.firstShiftId)data.settings.firstShiftId=id;
   $('#newShiftName').value='';saveData();renderSettings();renderCalendar();showToast('Turno agregado.');
 });
-$('#newShiftDuration').addEventListener('change',()=>{const duration=$('#newShiftDuration').value;if(duration!=='custom')$('#newShiftEnd').value=minutesToTime(timeMinutes($('#newShiftStart').value||'08:00')+Number(duration)*60);});
-$('#newShiftStart').addEventListener('change',()=>{const duration=$('#newShiftDuration').value;if(duration!=='custom')$('#newShiftEnd').value=minutesToTime(timeMinutes($('#newShiftStart').value||'08:00')+Number(duration)*60);});
 $$('input[name="scheduleMode"]').forEach((radio)=>radio.addEventListener('change',()=>{if(!radio.checked)return;data.mode=radio.value;saveData();renderSettings();renderCalendar();}));
 $('#anchorFranco').addEventListener('change',()=>{data.settings.anchorFranco=$('#anchorFranco').value;refreshAll();});
 $('#firstShift').addEventListener('change',()=>{data.settings.firstShiftId=$('#firstShift').value;refreshAll();});
+$('#rotationDirection').addEventListener('change',()=>{data.settings.rotationDirection=$('#rotationDirection').value==='reverse'?'reverse':'forward';refreshAll();});
 $('#workDays').addEventListener('change',()=>{data.settings.workDays=Math.max(1,Math.min(31,Number($('#workDays').value)||5));refreshAll();});
 $('#restDays').addEventListener('change',()=>{data.settings.restDays=Math.max(0,Math.min(14,Number($('#restDays').value)||0));refreshAll();});
 ['nightStart','nightEnd'].forEach((id)=>$('#'+id).addEventListener('change',()=>{data.settings.hourRules=normalizeHourRules({...data.settings.hourRules,[id]:$('#'+id).value});saveData();renderCalendar();}));
@@ -613,8 +693,9 @@ $('#exportProfileBackup').addEventListener('click',()=>{saveData();const profile
 // Modo oscuro persistente (independiente de los perfiles).
 const THEME_KEY='mis-turnos-theme-v1';
 function applyTheme(theme){const dark=theme==='dark';document.body.classList.toggle('dark-mode',dark);const btn=$('#themeToggle');if(btn){btn.textContent=dark?'☀ Modo claro':'☾ Modo oscuro';btn.setAttribute('aria-pressed',String(dark));}const meta=$('#themeColorMeta');if(meta)meta.setAttribute('content',dark?'#111827':'#202b57');}
-applyTheme(localStorage.getItem(THEME_KEY)||'light');
-$('#themeToggle').addEventListener('click',()=>{const dark=!document.body.classList.contains('dark-mode');const theme=dark?'dark':'light';localStorage.setItem(THEME_KEY,theme);applyTheme(theme);});
+applyTheme(safeStorageGet(THEME_KEY)||'light');
+applyDisplayPreferences();
+$('#themeToggle').addEventListener('click',()=>{const dark=!document.body.classList.contains('dark-mode');const theme=dark?'dark':'light';safeStorageSet(THEME_KEY,theme);applyTheme(theme);});
 
 // PWA instalación/actualización.
 window.addEventListener('beforeinstallprompt',(event)=>{event.preventDefault();installPrompt=event;$('#installButton').hidden=false;});

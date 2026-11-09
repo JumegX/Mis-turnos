@@ -45,21 +45,29 @@
             <p class="eyebrow">TU PLANIFICACIÓN</p>
             <h2 id="monthTitle">Noviembre 2026</h2>
           </div>
-          <div class="month-actions">
-            <button class="soft-button today-button" id="todayButton" type="button">Hoy</button>
-            <button class="icon-button" id="prevMonth" type="button" aria-label="Mes anterior">‹</button>
-            <button class="icon-button" id="nextMonth" type="button" aria-label="Mes siguiente">›</button>
+        </div>
+        <div class="calendar-view-options" aria-label="Opciones de visualización">
+          <div class="view-switch">
+            <button class="display-option active" id="calendarGridView" type="button" aria-pressed="true">▦ Calendario</button>
+            <button class="display-option" id="calendarListView" type="button" aria-pressed="false">☷ Lista vertical</button>
           </div>
+          <button class="soft-button enlarge-toggle" id="largeInterfaceToggle" type="button" aria-pressed="false">A+ Agrandar vista</button>
         </div>
 
         <div class="summary-strip" id="monthSummary" aria-live="polite"></div>
         <section class="hours-summary" id="hoursSummary" aria-live="polite"></section>
-        <div class="calendar-card">
+        <div class="calendar-card" id="calendarCard">
           <div class="weekdays" aria-hidden="true">
             <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
           </div>
           <div class="calendar-grid" id="calendarGrid" aria-label="Calendario mensual"></div>
           <div class="calendar-legend" id="calendarLegend"></div>
+        </div>
+        <div id="calendarList" class="calendar-list hidden" aria-label="Lista diaria del mes"></div>
+        <div class="calendar-bottom-nav" aria-label="Navegación entre meses">
+          <button class="soft-button" id="prevMonth" type="button">‹ Mes anterior</button>
+          <button class="soft-button today-button" id="todayButton" type="button">Hoy</button>
+          <button class="soft-button" id="nextMonth" type="button">Mes siguiente ›</button>
         </div>
 
         <section class="selected-panel selected-panel-detail" id="selectedPanel" aria-live="polite">
@@ -89,24 +97,22 @@
         </div>
 
         <section class="settings-card">
-          <h3>1. Tipo de planificación</h3>
+          <h3>1. Franco</h3>
           <div class="mode-options">
-            <label class="mode-option"><input type="radio" name="scheduleMode" value="rotation"><span><strong>Rotación</strong><small>Calcula los bloques de trabajo y francos.</small></span></label>
-            <label class="mode-option"><input type="radio" name="scheduleMode" value="fixed"><span><strong>Turnos fijos</strong><small>Repite el horario indicado para cada día de la semana.</small></span></label>
-            <label class="mode-option"><input type="radio" name="scheduleMode" value="manual"><span><strong>Solo carga manual</strong><small>El calendario se completa fecha por fecha.</small></span></label>
+            <label class="mode-option"><input type="radio" name="scheduleMode" value="rotation"><span><strong>Rotativo</strong><small>Calcula automáticamente los turnos y francos según la secuencia configurada.</small></span></label>
+            <label class="mode-option"><input type="radio" name="scheduleMode" value="fixed"><span><strong>Fijo</strong><small>Repite el horario indicado para cada día de la semana.</small></span></label>
           </div>
         </section>
 
         <section class="settings-card">
           <div class="card-title-row">
-            <div><h3>2. Mis turnos y horarios</h3><p class="helper">Podés definir turnos de cualquier duración. Para una carga puntual también hay jornadas rápidas de 4, 6, 8 y 12 horas, horas extra y segundos turnos.</p></div>
+            <div><h3>2. Mis turnos y horarios</h3><p class="helper">Creá tus turnos indicando el horario de inicio y finalización. La duración se calcula automáticamente. Usá las flechas ↑ y ↓ de cada turno para cambiar el orden de la rotación.</p></div>
           </div>
           <div id="shiftsEditor" class="shifts-editor"></div>
           <form id="addShiftForm" class="add-shift-form">
             <label class="field"><span>Nombre del turno</span><input id="newShiftName" type="text" maxlength="30" placeholder="Ej. Turno especial" required></label>
             <label class="field"><span>Desde</span><input id="newShiftStart" type="time" value="08:00" required></label>
             <label class="field"><span>Hasta</span><input id="newShiftEnd" type="time" value="14:00" required></label>
-            <label class="field"><span>Duración</span><select id="newShiftDuration"><option value="4">4 horas</option><option value="6" selected>6 horas</option><option value="8">8 horas</option><option value="12">12 horas</option><option value="custom">Personalizada</option></select></label>
             <label class="field color-field"><span>Color</span><input id="newShiftColor" type="color" value="#dbeafe"></label>
             <button class="primary-button add-shift-button" type="submit">＋ Añadir turno</button>
           </form>
@@ -114,10 +120,11 @@
 
         <section class="settings-card" id="rotationSettings">
           <h3>3. Datos para calcular la rotación</h3>
-          <p class="helper">Indicá un franco que tengas confirmado. Desde esa fecha la aplicación calcula los próximos ciclos. Si todavía no querés calcular una rotación, dejá este apartado sin configurar.</p>
+          <p class="helper">Indicá un franco que tengas confirmado. La secuencia sigue el orden de los turnos que aparece en el apartado anterior; podés cambiar ese orden con las flechas de cada turno. No se ordenan automáticamente por horario. Elegí si el ciclo avanza en ese orden o en el sentido inverso.</p>
           <div class="form-grid two-cols">
             <label class="field"><span>Fecha del franco de referencia</span><input id="anchorFranco" type="date"></label>
-            <label class="field"><span>Turno que comienza después de ese franco</span><select id="firstShift"></select></label>
+            <label class="field"><span>Primer turno después de ese franco</span><select id="firstShift"></select></label>
+            <label class="field"><span>Sentido de la rotación</span><select id="rotationDirection"><option value="forward">En el orden de la lista</option><option value="reverse">En sentido inverso</option></select></label>
             <label class="field"><span>Días de trabajo por bloque</span><input id="workDays" type="number" min="1" max="31" inputmode="numeric"></label>
             <label class="field"><span>Días de descanso antes del franco</span><input id="restDays" type="number" min="0" max="14" inputmode="numeric"></label>
           </div>
@@ -208,7 +215,11 @@
       </section>
     </main>
 
-    <footer class="app-footer"><span>Mis Turnos · Versión 5.0</span><span>Calendario personal y control de jornadas</span></footer>
+    <footer class="app-footer app-footer-expanded">
+      <div class="footer-branding"><strong>Mis Turnos · Versión 6.0</strong><span>Calendario personal y control de jornadas</span></div>
+      <div class="footer-credit"><span>Desarrollado por Carlos Quinteros, con asistencia de ChatGPT.</span><span>Aplicación gratuita. Las donaciones son voluntarias y se agradecen como reconocimiento al trabajo de desarrollo.</span></div>
+      <a class="soft-button donation-button" id="donationButton" href="https://cafecito.app/jumeg" target="_blank" rel="noopener noreferrer">♡ Invitar un Cafecito</a>
+    </footer>
   </div>
 
   <dialog id="eventDialog" class="event-dialog">
@@ -220,7 +231,7 @@
         <div class="segment-heading"><strong>Tramos de trabajo</strong><small>Podés agregar horas extra o un segundo turno en el mismo día.</small></div>
         <div id="segmentsContainer" class="segments-container"></div>
         <button class="soft-button add-segment-button" id="addSegmentButton" type="button">＋ Agregar horas extra / segundo turno</button>
-        <label class="checkbox-field"><input type="checkbox" id="autoExit"><span>Marcar también la salida al día siguiente si el último tramo cruza la medianoche.</span></label>
+        <label class="checkbox-field" hidden><input type="checkbox" id="autoExit" checked><span>Registrar siempre la salida al día siguiente cuando el último tramo cruza la medianoche.</span></label>
       </div>
       <label class="field"><span>Aclaración breve (opcional)</span><input id="eventNote" type="text" maxlength="120" placeholder="Ej. Reemplazo, guardia, cobertura"></label>
       <div class="dialog-actions"><button class="text-button danger-text" id="deleteManualButton" type="button" hidden>Quitar asignación</button><span class="dialog-spacer"></span><button class="soft-button" id="cancelDialog" type="button">Cancelar</button><button class="primary-button" type="submit">Guardar</button></div>
